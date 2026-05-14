@@ -1,0 +1,8 @@
+streamlit
+pandas
+sqlalchemy
+python-dotenv
+plotly
+langchain
+langchain-groq
+groq
