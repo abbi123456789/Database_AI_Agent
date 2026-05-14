@@ -3,6 +3,7 @@ import time
 import logging
 from pathlib import Path
 
+import streamlit as st
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import OperationalError
@@ -10,7 +11,7 @@ from sqlalchemy.engine.url import make_url
 from dotenv import load_dotenv
 
 # ---------------------------------------------------
-# 📦 Load .env from project root
+# 📦 Load .env (ONLY for local)
 # ---------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
@@ -22,17 +23,33 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------
-# 🔐 Read DB URL
+# 🔐 Safe config loader (LOCAL + CLOUD)
 # ---------------------------------------------------
-DB_URL = os.getenv("DB_URL")
+def get_secret(key):
+    """
+    Priority:
+    1. Streamlit Cloud Secrets
+    2. Local .env
+    """
+    if hasattr(st, "secrets") and key in st.secrets:
+        return st.secrets[key]
+    return os.getenv(key)
+
+
+# ---------------------------------------------------
+# 🔐 Read DB URL safely
+# ---------------------------------------------------
+DB_URL = get_secret("DB_URL")
 
 if not DB_URL:
-    raise ValueError("❌ DB_URL not found in .env file")
+    raise ValueError("❌ DB_URL not found in environment or Streamlit secrets")
+
 
 # ---------------------------------------------------
-# 🧠 Detect DB type (sqlite / postgres)
+# 🧠 Detect DB type
 # ---------------------------------------------------
 db_type = make_url(DB_URL).get_backend_name()
+
 
 # ---------------------------------------------------
 # 🔌 Create Engine (conditional config)
@@ -56,6 +73,7 @@ else:
     )
     logger.info("🐘 Using PostgreSQL database")
 
+
 # ---------------------------------------------------
 # 🧾 Session factory
 # ---------------------------------------------------
@@ -64,6 +82,7 @@ SessionLocal = sessionmaker(
     autoflush=False,
     bind=engine
 )
+
 
 # ---------------------------------------------------
 # 🔁 Retry decorator
@@ -86,8 +105,9 @@ def retry_db_connection(func):
 
     return wrapper
 
+
 # ---------------------------------------------------
-# 📌 Get DB session (generator)
+# 📌 Get DB session
 # ---------------------------------------------------
 @retry_db_connection
 def get_db_session():
@@ -96,6 +116,7 @@ def get_db_session():
         yield session
     finally:
         session.close()
+
 
 # ---------------------------------------------------
 # 🧪 Test connection
@@ -109,6 +130,7 @@ def test_connection():
     except Exception as e:
         logger.error(f"❌ Connection test failed: {e}")
         raise
+
 
 # ---------------------------------------------------
 # ▶ Run directly
